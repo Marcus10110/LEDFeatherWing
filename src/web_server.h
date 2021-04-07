@@ -1,7 +1,8 @@
 #pragma once
-
+#include <functional>
 namespace WebServer
 {
-    void Start();
+    extern const char* BroadcastHeaderName;
+    void Start( std::function<void()> queue_broadcast, std::function<void()> queue_discovery );
     void Stop();
 }

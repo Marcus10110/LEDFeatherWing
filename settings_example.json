@@ -1,0 +1,32 @@
+{
+    "deviceName": "LED Feather Wing 1",
+    "mTimezoneOffsetMinutes": -480,
+    "mUseDst": true,
+    "mBrightness": 255,
+    "strips": [
+        {
+            "mEnable": true,
+            "mInvert": false,
+            "mLength": 150,
+            "mIndex": 0
+        },
+        {
+            "mEnable": true,
+            "mInvert": false,
+            "mLength": 150,
+            "mIndex": 0
+        },
+        {
+            "mEnable": true,
+            "mInvert": false,
+            "mLength": 150,
+            "mIndex": 0
+        },
+        {
+            "mEnable": true,
+            "mInvert": false,
+            "mLength": 150,
+            "mIndex": 0
+        }
+    ]
+}

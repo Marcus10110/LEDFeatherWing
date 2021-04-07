@@ -26,3 +26,45 @@ For each strip - on/off, index, reversed, LED count (index used in multi-strip a
 Web service:
 Display all settings.
 Expose buttons to change all interfaces.
+
+Endpoints:
+index - static html page.
+/status - returns json blob with all data
+/setBrightness - just sets the brightness
+/setAnimation - just sets the animation settings
+/setSettings - set everything else!
+
+Boot state machine.
+
+1. attempt to load settings. if empty, load default. (keep track if we've defaulted or not)
+   1.5. initialize time.
+2. use DNS SD / mDNS to queryService, to locate other connected LED Feather Wings.
+3. if found, query settings from the nearest one. Load brightness & animation number.
+
+LED Animation Ideas:
+
+- Solid white
+- Daylight mode. Use wall clock time (and optionally sunrise/sunset) to create 24 basic animation. Could go nuts with it later.
+- color strobe mode
+- twinkling stars (colored or uncolored)
+-
+
+## TODO:
+
+- add Off / 1% 25% 50% 100% buttons
+- actually implement some more animations, index support, etc
+- when a device gets a request from someone, add it to the Neighbor list if it's not already there.
+- when a request fails, remove from neighbor list.
+
+## FW Issues
+
+## LED Layout
+
+The couch wall had 49 LEDs removed, leaving 101.
+The bar wall has all 150 LEDs
+
+## PCB Errata
+
+- Label the connectors (somehow)
+- feather GND on pin 16 should not be there, that's an IO pin.
+- connector does not work with stranded - TODO - test with Ferrule, if that doesn't work, get a different connector

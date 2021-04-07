@@ -2,3 +2,4 @@
 
 #define WIFI_SSID "<SSID>";
 #define WIFI_PASS "<Password>";
+#define OTA_PASS "<OTA Password>";

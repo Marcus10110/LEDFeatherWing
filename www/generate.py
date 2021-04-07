@@ -7,7 +7,6 @@ def encode_string(s, encoding='ascii'):
       s = s.encode(encoding)
    result = ''
    for c in s:
-    print(c)
     if not (32 <= c < 127) or c in ('\\', '"'):
         result += '\\%03o' % c
     elif chr(c) == '"':

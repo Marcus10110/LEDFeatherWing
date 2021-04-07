@@ -1,6 +1,5 @@
 #pragma once
 
-namespace Content
-{
+namespace Content {
     extern const char* index;
 }

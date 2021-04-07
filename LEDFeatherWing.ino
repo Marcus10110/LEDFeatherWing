@@ -1,135 +1,172 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
-#include "time.h"
 #include "src\wifi_config.h"
 #include "src\led.h"
 #include "src\web_server.h"
+#include "src\settings.h"
+#include "src\wall_time.h"
+#include "src\sync.h"
+
+#ifdef OTA_PASS
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+
+const char* ota_password = OTA_PASS;
+#endif
+
 
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASS;
 
-const char* ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = -8 * 60 * 60;
-const int daylightOffset_sec = 3600;
-
-bool IsDaylightSaving = false;
-
-// TCP server at port 80 will respond to HTTP requests
-WiFiServer server( 80 );
-
-void CheckDaylightSaving()
-{
-    struct tm timeinfo;
-    if( !getLocalTime( &timeinfo ) )
-    {
-        Serial.println( "Failed to obtain time" );
-        return;
-    }
-    IsDaylightSaving = timeinfo.tm_isdst > 0;
-}
-
-void printLocalTime()
-{
-    struct timeval tv;
-    struct tm timeinfo;
-    if( !getLocalTime( &timeinfo ) )
-    {
-        Serial.println( "Failed to obtain time" );
-        return;
-    }
-    auto a = gettimeofday( &tv, nullptr );
-    if( a != 0 )
-    {
-        Serial.println( "Failed to obtain gettimeofday" );
-        Serial.println( a );
-    }
-    Serial.println( &timeinfo, "%A, %B %d %Y %H:%M:%S" );
-    // Serial.println( tv.tv_sec );
-    // Serial.println( tv.tv_usec );
-    auto ms = Ms();
-    Serial.println( ms );
-}
-
-// returns the number of miliseconds since midnight local time.
-uint32_t Ms()
-{
-    timeval tv{ 0, 0 };
-    timezone zone{ 0, 0 };
-    if( gettimeofday( &tv, &zone ) != 0 )
-    {
-        Serial.println( "Failed to obtain gettimeofday" );
-        return -1;
-    }
-    uint32_t time_temp = tv.tv_sec;
-    time_temp += gmtOffset_sec;
-    if( IsDaylightSaving )
-    {
-        time_temp += daylightOffset_sec;
-    }
-    time_temp = time_temp % ( 60 * 60 * 24 );
-    time_temp *= 1000;
-    time_temp += ( tv.tv_usec / 1000 );
-    return time_temp;
-}
+bool SettingsBroadcastNeeded = false;
+bool DiscoveryNeeded = false;
 
 void setup()
 {
     Serial.begin( 115200 );
 
+    // Load or apply default settings.
+    Settings::InitializeSettings();
+    Settings::PrintSettings();
+
     // connect to WiFi
     Serial.printf( "Connecting to %s ", ssid );
     WiFi.begin( ssid, password );
+    auto connection_timeout = millis() + 1000 * 10;
     while( WiFi.status() != WL_CONNECTED )
     {
         delay( 500 );
         Serial.print( "." );
+        if( millis() >= connection_timeout )
+        {
+            Serial.println( "\nConnection timeout. Rebooting..." );
+            ESP.restart();
+        }
     }
     Serial.println( " CONNECTED to wifi" );
 
-    // init and get the time
-    configTime( gmtOffset_sec, daylightOffset_sec, ntpServer );
-    struct tm timeinfo;
-    while( !getLocalTime( &timeinfo ) )
-    {
-        Serial.println( "Failed to obtain time, retrying..." );
-        delay( 100 );
-    }
-    AdvertiseServices( "LEDFeatherWing" );
+#ifdef OTA_PASS
 
-    // server.begin();
-    // Serial.println( "server started" );
-    MDNS.addService( "http", "tcp", 80 );
-    WebServer::Start();
-    printLocalTime();
-    CheckDaylightSaving();
-    // disconnect WiFi as it's no longer needed
-    // WiFi.disconnect( true );
-    // WiFi.mode( WIFI_OFF );
+    // mDNS is manually enabled, don't have ArduinoOTA try to start it for is.
+    ArduinoOTA.setMdnsEnabled( false );
+    ArduinoOTA.setPassword( ota_password );
+
+    ArduinoOTA
+        .onStart( []() {
+            String type;
+            if( ArduinoOTA.getCommand() == U_FLASH )
+                type = "sketch";
+            else // U_SPIFFS
+                type = "filesystem";
+
+            // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+            Serial.println( "Start updating " + type );
+        } )
+        .onEnd( []() { Serial.println( "\nEnd" ); } )
+        .onProgress(
+            []( unsigned int progress, unsigned int total ) { Serial.printf( "Progress: %u%%\r", ( progress / ( total / 100 ) ) ); } )
+        .onError( []( ota_error_t error ) {
+            Serial.printf( "Error[%u]: ", error );
+            if( error == OTA_AUTH_ERROR )
+                Serial.println( "Auth Failed" );
+            else if( error == OTA_BEGIN_ERROR )
+                Serial.println( "Begin Failed" );
+            else if( error == OTA_CONNECT_ERROR )
+                Serial.println( "Connect Failed" );
+            else if( error == OTA_RECEIVE_ERROR )
+                Serial.println( "Receive Failed" );
+            else if( error == OTA_END_ERROR )
+                Serial.println( "End Failed" );
+        } );
+
+    ArduinoOTA.begin();
+    Serial.println( "OTA service started" );
+#endif
+
+    // Time
+    WallTime::Setup();
+    WallTime::printLocalTime();
+
+    AdvertiseServices();
+    WebServer::Start( []() { SettingsBroadcastNeeded = true; }, []() { DiscoveryNeeded = true; } );
     Led::Setup();
-    Led::Test();
+    uint8_t existing_brightness, existing_animation_index;
+    Sync::RefreshNeighbors();
+    if( Sync::DiscoverExistingSettings( existing_brightness, existing_animation_index ) )
+    {
+        Serial.println( "discovered existing device, loading settings!" );
+        Serial.print( existing_brightness );
+        Serial.print( ", " );
+        Serial.println( existing_animation_index );
+        Settings::Settings.mAnimationIndex = existing_animation_index;
+        Settings::Settings.mBrightness = existing_brightness;
+        if( !Settings::SaveToFlash( Settings::Settings ) )
+        {
+            Serial.println( "failed to save to flash" );
+        }
+    }
+    else
+    {
+        Serial.println( "no existing devices found, using stored settings" );
+    }
 }
 
-uint32_t last = 0;
 void loop()
 {
-    if( Ms() > ( last + 1000 ) )
+    static uint32_t last = 0;
+    auto ms = WallTime::Ms();
+    if( ms > ( last + 10000 ) )
     {
-        last = Ms();
-        printLocalTime();
+        last = ms;
+        WallTime::printLocalTime();
     }
+    Led::Update( ms );
+    if( SettingsBroadcastNeeded )
+    {
+        SettingsBroadcastNeeded = false;
+        if( Sync::BroadcastSettings( Settings::Settings.mBrightness, Settings::Settings.mAnimationIndex ) )
+        {
+            Serial.println( "sent settings to other device(s)!" );
+        }
+        else
+        {
+            Serial.println( "no devices to sync with" );
+        }
+    }
+
+    if( DiscoveryNeeded )
+    {
+        DiscoveryNeeded = false;
+        Sync::RefreshNeighbors();
+    }
+
+#ifdef OTA_PASS
+    ArduinoOTA.handle();
+#endif
 }
 
 
-void AdvertiseServices( const char* MyName )
+String Url()
 {
-    if( MDNS.begin( MyName ) )
+    String url = Settings::Settings.mDeviceName;
+    url.replace( ' ', '-' );
+    url.toLowerCase();
+    return url;
+}
+
+void AdvertiseServices()
+{
+    const auto url = Url();
+    if( MDNS.begin( url.c_str() ) )
     {
         Serial.println( F( "mDNS responder started" ) );
-        Serial.print( F( "I am: " ) );
-        Serial.println( MyName );
-
-        // Add service to MDNS-SD
-        MDNS.addService( "n8i-mlp", "tcp", 23 );
+        Serial.print( F( "URL: http://" ) );
+        Serial.print( url.c_str() );
+        Serial.println( ".local" );
+        MDNS.addService( "LEDFeatherWing", "tcp", 80 );
+#ifdef OTA_PASS
+        MDNS.enableArduino( 3232, true );
+#endif
     }
     else
     {
@@ -140,65 +177,3 @@ void AdvertiseServices( const char* MyName )
         }
     }
 }
-
-/*
-void HandleHttp()
-{
-    // Check if a client has connected
-    WiFiClient client = server.available();
-    if( !client )
-    {
-        return;
-    }
-    Serial.println( "" );
-    Serial.println( "New client" );
-
-    uint32_t timeout = Ms() + 5000;
-    // Wait for data from client to become available
-    while( client.connected() && !client.available() )
-    {
-        delay( 1 );
-        if( Ms() >= timeout )
-        {
-            client.stop();
-            return;
-        }
-    }
-
-    // Read the first line of HTTP request
-    String req = client.readStringUntil( '\r' );
-
-    // First line of HTTP request looks like "GET /path HTTP/1.1"
-    // Retrieve the "/path" part by finding the spaces
-    int addr_start = req.indexOf( ' ' );
-    int addr_end = req.indexOf( ' ', addr_start + 1 );
-    if( addr_start == -1 || addr_end == -1 )
-    {
-        Serial.print( "Invalid request: " );
-        Serial.println( req );
-        return;
-    }
-    req = req.substring( addr_start + 1, addr_end );
-    Serial.print( "Request: " );
-    Serial.println( req );
-
-    String s;
-    if( req == "/" )
-    {
-        IPAddress ip = WiFi.localIP();
-        String ipStr = String( ip[ 0 ] ) + '.' + String( ip[ 1 ] ) + '.' + String( ip[ 2 ] ) + '.' + String( ip[ 3 ] );
-        s = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html>Hello from ESP32 at ";
-        s += ipStr;
-        s += "</html>\r\n\r\n";
-        Serial.println( "Sending 200" );
-    }
-    else
-    {
-        s = "HTTP/1.1 404 Not Found\r\n\r\n";
-        Serial.println( "Sending 404" );
-    }
-    client.print( s );
-
-    client.stop();
-    Serial.println( "Done with client" );
-}*/

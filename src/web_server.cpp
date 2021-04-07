@@ -2,37 +2,99 @@
 #include <esp_http_server.h>
 #include <Arduino.h>
 #include "generated.h"
+#include "settings.h"
+#include "utilities.h"
+#include "sync.h"
 namespace WebServer
 {
+    const char* BroadcastHeaderName = "x-broadcast";
     namespace
     {
         httpd_handle_t ServerHandle = nullptr;
+        std::function<void()> BroadcastSettingsCallback;
+        std::function<void()> QueueDiscoveryCallback;
 
-        /* Our URI handler function to be called during GET /uri request */
-        esp_err_t get_handler( httpd_req_t* req )
+        esp_err_t HandleGetHomepage( httpd_req_t* req )
         {
-            Serial.println( "get request" );
-            /* Send a simple response */
-            const char resp[] = "URI GET Response";
+            Serial.println( "get index" );
             httpd_resp_send( req, Content::index, HTTPD_RESP_USE_STRLEN );
             return ESP_OK;
         }
 
-        /* Our URI handler function to be called during POST /uri request */
-        esp_err_t post_handler( httpd_req_t* req )
+        esp_err_t HandleGetSettings( httpd_req_t* req )
         {
-            Serial.println( "post request" );
-            /* Destination buffer for content of HTTP POST request.
-             * httpd_req_recv() accepts char* only, but content could
-             * as well be any binary data (needs type casting).
-             * In case of string data, null termination will be absent, and
-             * content length would give length of string */
-            char content[ 100 ];
+            Serial.println( "get settings" );
+            /* Send a simple response */
+            String settings_string;
+            Settings::SerializeSettings( Settings::Settings, settings_string, []( JsonDocument* doc ) {
+                // add neightbor names!
+                int neighbor_count = 0;
+                auto neighbors = Sync::GetNeighbors( &neighbor_count );
+                JsonArray neighbor_array = doc->createNestedArray( "neighbors" );
+                for( int i = 0; i < neighbor_count; ++i )
+                {
+                    neighbor_array.add( neighbors[ i ].mHostName );
+                }
+            } );
+            httpd_resp_set_type( req, "application/json" );
+            httpd_resp_set_hdr( req, "Access-Control-Allow-Origin", "*" );
+            httpd_resp_send( req, settings_string.c_str(), HTTPD_RESP_USE_STRLEN );
+            return ESP_OK;
+        }
 
-            /* Truncate if content length larger than the buffer */
-            size_t recv_size = min( req->content_len, sizeof( content ) );
+        esp_err_t HandleOptions( httpd_req_t* req )
+        {
+            Serial.println( "set settings options" );
+            httpd_resp_set_type( req, "application/json" );
+            httpd_resp_set_hdr( req, "Access-Control-Allow-Origin", "*" );
+            httpd_resp_set_hdr( req, "Access-Control-Allow-Headers", "*" );
+            httpd_resp_set_hdr( req, "Access-Control-Allow-Methods", "POST, OPTIONS" );
+            httpd_resp_set_status( req, "204 No Content" );
+            httpd_resp_send( req, nullptr, 0 );
+            return ESP_OK;
+        }
 
-            int ret = httpd_req_recv( req, content, recv_size );
+        esp_err_t HandleResetNeighbors( httpd_req_t* req )
+        {
+            Serial.println( "Refresh Neighbors" );
+            if( QueueDiscoveryCallback )
+            {
+                QueueDiscoveryCallback();
+            }
+            /* Send a simple response */
+            const char resp[] = "done";
+            httpd_resp_set_hdr( req, "Access-Control-Allow-Origin", "*" );
+            httpd_resp_send( req, resp, HTTPD_RESP_USE_STRLEN );
+            return ESP_OK;
+        }
+
+        esp_err_t HandleResetEsp( httpd_req_t* req )
+        {
+            Serial.println( "Reset Requested!" );
+            ESP.restart();
+            /* Send a simple response */
+            const char resp[] = "done";
+            httpd_resp_set_hdr( req, "Access-Control-Allow-Origin", "*" );
+            httpd_resp_send( req, resp, HTTPD_RESP_USE_STRLEN );
+            return ESP_OK;
+        }
+
+        esp_err_t HandleSetSettings( httpd_req_t* req )
+        {
+            PROFILE_FUNC;
+            Serial.println( "set settings" );
+            char content[ 1024 ];
+
+            if( req->content_len >= sizeof( content ) ) // ensure room for null terminator.
+            {
+                Serial.println( "request too large!" );
+                Serial.println( req->content_len );
+                return ESP_FAIL;
+            }
+
+            bool isBroadcast = httpd_req_get_hdr_value_len( req, BroadcastHeaderName ) > 0;
+
+            int ret = httpd_req_recv( req, content, req->content_len );
             if( ret <= 0 )
             { /* 0 return value indicates connection closed */
                 /* Check if timeout occurred */
@@ -47,22 +109,50 @@ namespace WebServer
                  * ensure that the underlying socket is closed */
                 return ESP_FAIL;
             }
+            content[ req->content_len ] = 0; // add null terminator.
+            Serial.println( content );
+
+            if( Settings::DeserializePartialSettings( Settings::Settings, content, req->content_len ) )
+            {
+                Serial.println( "settings set successfully" );
+                if( BroadcastSettingsCallback && !isBroadcast )
+                {
+                    BroadcastSettingsCallback();
+                }
+            }
+            else
+            {
+                Serial.println( "failed to set settings" );
+            }
+
+            if( !Settings::SaveToFlash( Settings::Settings ) )
+            {
+                Serial.println( "failed to save to flash" );
+            }
 
             /* Send a simple response */
-            const char resp[] = "URI POST Response";
+            const char resp[] = "Settings Accepted!";
+            httpd_resp_set_hdr( req, "Access-Control-Allow-Origin", "*" );
             httpd_resp_send( req, resp, HTTPD_RESP_USE_STRLEN );
             return ESP_OK;
         }
 
-        /* URI handler structure for GET /uri */
-        httpd_uri_t uri_get = { .uri = "/uri", .method = HTTP_GET, .handler = get_handler, .user_ctx = NULL };
+        httpd_uri_t GetHomepage = { .uri = "/", .method = HTTP_GET, .handler = HandleGetHomepage, .user_ctx = NULL };
+        httpd_uri_t GetSettings = { .uri = "/settings", .method = HTTP_GET, .handler = HandleGetSettings, .user_ctx = NULL };
 
-        /* URI handler structure for POST /uri */
-        httpd_uri_t uri_post = { .uri = "/uri", .method = HTTP_POST, .handler = post_handler, .user_ctx = NULL };
+        httpd_uri_t SetSettingsOptions = { .uri = "/*", .method = HTTP_OPTIONS, .handler = HandleOptions, .user_ctx = NULL };
+
+        httpd_uri_t SetSettings = { .uri = "/setSettings", .method = HTTP_POST, .handler = HandleSetSettings, .user_ctx = NULL };
+        httpd_uri_t ResetNeighbors = { .uri = "/resetNeighbors", .method = HTTP_POST, .handler = HandleResetNeighbors, .user_ctx = NULL };
+        httpd_uri_t ResetEsp = { .uri = "/resetEsp", .method = HTTP_POST, .handler = HandleResetEsp, .user_ctx = NULL };
+
     }
 
-    void Start()
+
+    void Start( std::function<void()> queue_broadcast, std::function<void()> queue_discovery )
     {
+        BroadcastSettingsCallback = queue_broadcast;
+        QueueDiscoveryCallback = queue_discovery;
         /* Generate default configuration */
         httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 
@@ -73,8 +163,14 @@ namespace WebServer
         if( httpd_start( &ServerHandle, &config ) == ESP_OK )
         {
             /* Register URI handlers */
-            httpd_register_uri_handler( ServerHandle, &uri_get );
-            httpd_register_uri_handler( ServerHandle, &uri_post );
+            httpd_register_uri_handler( ServerHandle, &GetHomepage );
+            httpd_register_uri_handler( ServerHandle, &GetSettings );
+
+            httpd_register_uri_handler( ServerHandle, &SetSettingsOptions );
+
+            httpd_register_uri_handler( ServerHandle, &SetSettings );
+            httpd_register_uri_handler( ServerHandle, &ResetNeighbors );
+            httpd_register_uri_handler( ServerHandle, &ResetEsp );
         }
         else
         {
