@@ -1,6 +1,7 @@
 #include "led.h"
 #include <Adafruit_NeoPixel.h>
 #include "settings.h"
+#include "animations.h"
 #include <functional>
 
 #define LED_PIN_A 14
@@ -34,6 +35,41 @@ namespace Led
                 strip.setPixelColor( i, Adafruit_NeoPixel::ColorHSV( hue ) );
             }
         }
+
+        void Animate2( Adafruit_NeoPixel& strip, const Settings::StripSettings& setting, uint8_t brightness, uint8_t animation_index,
+                       uint32_t ms )
+        {
+            if( animation_index >= Animation::AnimationCount() )
+            {
+                return;
+            }
+            strip.setBrightness( brightness );
+            auto& animation = *Animation::GetAnimation( animation_index );
+
+            Animation::AnimationSettings settings{ setting.mLength, setting.mIndex };
+            auto set_led = [&setting, &settings, &strip]( int i, uint8_t r, uint8_t g, uint8_t b ) {
+                // check if inverted.
+                if( setting.mInvert )
+                {
+                    i = settings.mCount - i - 1;
+                }
+                strip.setPixelColor( i, r, g, b );
+            };
+            auto get_led = [&setting, &settings, &strip]( int i, uint8_t& r, uint8_t& g, uint8_t& b ) {
+                // check if inverted.
+                if( setting.mInvert )
+                {
+                    i = settings.mCount - i - 1;
+                }
+                auto packed_color = strip.getPixelColor( i );
+                r = static_cast<uint8_t>( ( packed_color >> 16 ) & 0xFF );
+                g = static_cast<uint8_t>( ( packed_color >> 8 ) & 0xFF );
+                b = static_cast<uint8_t>( packed_color & 0xFF );
+            };
+
+            animation.Reset( settings );
+            animation.Render( set_led, get_led, ms );
+        }
     }
     void Setup()
     {
@@ -59,7 +95,7 @@ namespace Led
                 strip.clear();
                 continue;
             }
-            Animate( strip, setting, settings.mBrightness, settings.mAnimationIndex, ms );
+            Animate2( strip, setting, settings.mBrightness, settings.mAnimationIndex, ms );
         }
         for( int i = 0; i < 4; ++i )
         {

@@ -49,6 +49,11 @@ LED Animation Ideas:
 - twinkling stars (colored or uncolored)
 -
 
+The boards can be manually discovered using:
+dns-sd -B \_arduino.\_tcp
+or
+dns-sd -B \_LEDFeatherWing.\_tcp
+
 ## TODO:
 
 - add Off / 1% 25% 50% 100% buttons

@@ -24,19 +24,6 @@ namespace Animation
         AnimationSettings mSettings;
     };
 
-    class FnAnimation : public Animation
-    {
-      public:
-        using AnimationFn = std::function<void( SetLedFn&, GetLedFn&, const AnimationSettings&, uint32_t )>;
-        FnAnimation( AnimationFn fn );
-        ~FnAnimation() override;
-        void Reset( const AnimationSettings& settings ) override;
-        void Render( SetLedFn set_led, GetLedFn get_led, uint32_t ms ) override;
-
-      protected:
-        AnimationFn mFn;
-    };
-
-    extern FnAnimation WhiteAnimation;
-    extern FnAnimation DaylightAnimation;
+    int AnimationCount();
+    Animation* GetAnimation( int animation_index );
 }
