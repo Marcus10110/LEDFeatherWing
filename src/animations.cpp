@@ -2,6 +2,7 @@
 #include <array>
 #include <limits>
 #include <stdlib.h>
+
 namespace Animation
 {
     Animation::Animation() = default;
@@ -202,7 +203,7 @@ namespace Animation
                 // second on average.
                 // every second, we want N new stars.
                 // odds = LED_COUNT * fps / stars per sec
-                constexpr int odds = ( 30 * 600 ) / ( 180 );
+                constexpr int odds = ( 30 * 600 ) / ( 90 );
 
                 for( int i = 0; i < settings.mCount; i++ )
                 {
@@ -211,7 +212,18 @@ namespace Animation
                         // sparkle!
                         float hue = random( 100 ) / 100.0;            // random color
                         float brightness = random( 20, 100 ) / 100.0; // all are at least 50% brightness.
+
+
                         brightness = brightness * brightness * brightness * brightness * brightness * brightness;
+
+                        // check if the existing pixel is still lit, and skip if it's not dark.
+                        uint8_t r, g, b;
+                        get_led( i, r, g, b );
+                        if( ( r + g + b ) >= 30 )
+                        {
+                            continue;
+                        }
+
                         float saturation = random( 10, 100 ) / 100.0; // some color?
                         auto color = HsvToRgb( static_cast<uint16_t>( hue * std::numeric_limits<uint16_t>::max() ),
                                                static_cast<uint8_t>( saturation * 255 ), static_cast<uint8_t>( brightness * 255 ) );
@@ -239,8 +251,8 @@ namespace Animation
                         auto hsv = RgbToHsv( r, g, b );
                         if( std::get<2>( hsv ) > 0.0 )
                         {
-                            // decay over 5 seconds, from 255 to 0, at 30 hz. 30*5 =150 frames,
-                            std::get<2>( hsv ) = std::max( 0, std::get<2>( hsv ) - 3 );
+                            // decay over 8 seconds, from 255 to 0, at 30 hz. 30*8 =240 frames,
+                            std::get<2>( hsv ) = std::max( 0, std::get<2>( hsv ) - 1 );
                         }
                         auto rgb = HsvToRgb( std::get<0>( hsv ), std::get<1>( hsv ), std::get<2>( hsv ) );
                         set_led( i, std::get<0>( rgb ), std::get<1>( rgb ), std::get<2>( rgb ) );
