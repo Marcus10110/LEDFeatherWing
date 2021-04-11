@@ -86,6 +86,10 @@ dns-sd -B \_arduino.\_tcp
 or
 dns-sd -B \_LEDFeatherWing.\_tcp
 
+To get the IP, use the name with:
+dns-sd -G v4 livingroom1.local
+dns-sd -G v4 livingroom2.local
+
 ## TODO:
 
 - add Off / 1% 25% 50% 100% buttons

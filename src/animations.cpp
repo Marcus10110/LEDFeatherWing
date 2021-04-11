@@ -176,9 +176,9 @@ namespace Animation
 
         FnAnimation CircleRainbowAnimation =
             FnAnimation( []( SetLedFn& set_led, GetLedFn& get_led, const AnimationSettings& settings, uint32_t ms ) {
-                float start = ( ( ( ms % 5000 ) / 5000. ) + ( settings.mIndex / 4.0 ) ) * std::numeric_limits<uint16_t>::max();
+                float start = ( ( ( ms % 5000 ) / 5000. ) + ( settings.mIndex / 2.0 ) ) * std::numeric_limits<uint16_t>::max();
                 const float step =
-                    ( static_cast<float>( std::numeric_limits<uint16_t>::max() ) / static_cast<float>( settings.mCount ) ) / 4.0;
+                    ( static_cast<float>( std::numeric_limits<uint16_t>::max() ) / static_cast<float>( settings.mCount ) ) / 2.0;
                 for( int i = 0; i < settings.mCount; ++i )
                 {
                     start += step;
@@ -248,7 +248,27 @@ namespace Animation
                 }
             } );
 
-        std::array<Animation*, 4> AllAnimations = { &WhiteAnimation, &StripIdAnimation, &CircleRainbowAnimation, &SparkleAnimation };
+        FnAnimation KaleidoscopeAnimation =
+            FnAnimation( []( SetLedFn& set_led, GetLedFn& get_led, const AnimationSettings& settings, uint32_t ms ) {
+                float start = ( ( ms % 4000 ) / 4000. ) * std::numeric_limits<uint16_t>::max();
+                const float step = static_cast<float>( std::numeric_limits<uint16_t>::max() ) / static_cast<float>( settings.mCount ) * 1.5;
+                for( int i = 0; i < settings.mCount; ++i )
+                {
+                    start += step;
+
+                    while( start > std::numeric_limits<uint16_t>::max() )
+                    {
+                        start = start - std::numeric_limits<uint16_t>::max();
+                    }
+
+                    auto rgb = HsvToRgb( static_cast<uint16_t>( start ), 255, 255 );
+                    auto i_adjusted = settings.mIndex % 2 == 1 ? i : settings.mCount - i - 1;
+                    set_led( i_adjusted, std::get<0>( rgb ), std::get<1>( rgb ), std::get<2>( rgb ) );
+                }
+            } );
+
+        std::array<Animation*, 5> AllAnimations = { &WhiteAnimation, &StripIdAnimation, &CircleRainbowAnimation, &SparkleAnimation,
+                                                    &KaleidoscopeAnimation };
     }
 
     int AnimationCount()
