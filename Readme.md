@@ -27,6 +27,21 @@ in this project's src directory, copy src/wifi_config.h.template into a new file
 
 Use the Arduino IDE to either upload via serial port or OTA.
 
+## Simulator
+
+Each animation added to AllAnimations in animations.cpp can be simulated, to make animation development faster.
+
+to use:
+
+```
+cd simulator
+yarn dev
+```
+
+This will start a webserver, by default localhost:8080, and it will build the animation source code with web assembly.
+
+Open a browser to view the simulator. After making any change to the source code, simply wait for the web assembly complication to complete, then refresh the browser.
+
 ## Ideas:
 
 Use mDNS to broadcast the device name, and potentially do service discovery as well.

@@ -1,0 +1,24 @@
+{
+  "name": "led_simulator",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p .",
+    "dev": "concurrently -n js,cpp,http \"yarn build:js:watch\" \"yarn build:cpp:watch\" \"yarn start\"",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:js": "tsc -p .",
+    "build:cpp": "cd wasm && build.bat",
+    "build:js:watch": "tsc -w -p .",
+    "build:cpp:watch": "watch \"yarn build:cpp\" ../src/",
+    "start": "http-server ."
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^6.0.1",
+    "http-server": "^0.12.3",
+    "typescript": "^4.2.3",
+    "watch": "^1.0.2"
+  }
+}
