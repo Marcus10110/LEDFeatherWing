@@ -1,12 +1,12 @@
 
 #include <WiFi.h>
 #include <ESPmDNS.h>
-#include "src\wifi_config.h"
-#include "src\led.h"
-#include "src\web_server.h"
-#include "src\settings.h"
-#include "src\wall_time.h"
-#include "src\sync.h"
+#include "src/wifi_config.h"
+#include "src/led.h"
+#include "src/web_server.h"
+#include "src/settings.h"
+#include "src/wall_time.h"
+#include "src/sync.h"
 
 #ifdef OTA_PASS
 #include <WiFiUdp.h>

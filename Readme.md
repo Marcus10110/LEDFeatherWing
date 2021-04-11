@@ -10,6 +10,23 @@ Each strip has 150 LEDs, totaling 600.
 
 To keep animations synchronized, both LEDs will keep time synchronization with ntp internet time.
 
+## Getting Started:
+
+Requires Arduino
+
+Install the ArduinoJson library
+Install the Adafruit NeoPixel library
+
+Install the ESP32 board package:
+https://github.com/espressif/arduino-esp32#using-through-arduino-ide
+version 1.0.6+
+
+Select the Adafruit ESP32 Feather board
+
+in this project's src directory, copy src/wifi_config.h.template into a new file, wifi_config.h. Update this with your wifi SSID and password, as well as optional OTA details. Do not check in!
+
+Use the Arduino IDE to either upload via serial port or OTA.
+
 ## Ideas:
 
 Use mDNS to broadcast the device name, and potentially do service discovery as well.
