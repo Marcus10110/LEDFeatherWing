@@ -90,6 +90,14 @@ To get the IP, use the name with:
 dns-sd -G v4 livingroom1.local
 dns-sd -G v4 livingroom2.local
 
+Once the IPs have been discovered, they can be uploaded using the ota update tool that comes with Arduino.
+
+windows powershell:
+
+```ps
+.\upload.bat 192.168.7.156 192.168.7.161
+```
+
 ## TODO:
 
 - add Off / 1% 25% 50% 100% buttons
