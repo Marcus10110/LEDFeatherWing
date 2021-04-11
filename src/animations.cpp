@@ -176,7 +176,7 @@ namespace Animation
 
         FnAnimation CircleRainbowAnimation =
             FnAnimation( []( SetLedFn& set_led, GetLedFn& get_led, const AnimationSettings& settings, uint32_t ms ) {
-                float start = ( ( ( ms % 5000 ) / 5000. ) + ( settings.mIndex / 2.0 ) ) * std::numeric_limits<uint16_t>::max();
+                float start = ( ( ( ms % 7000 ) / 7000. ) + ( settings.mIndex / 2.0 ) ) * std::numeric_limits<uint16_t>::max();
                 const float step =
                     ( static_cast<float>( std::numeric_limits<uint16_t>::max() ) / static_cast<float>( settings.mCount ) ) / 2.0;
                 for( int i = 0; i < settings.mCount; ++i )
@@ -250,7 +250,7 @@ namespace Animation
 
         FnAnimation KaleidoscopeAnimation =
             FnAnimation( []( SetLedFn& set_led, GetLedFn& get_led, const AnimationSettings& settings, uint32_t ms ) {
-                float start = ( ( ms % 4000 ) / 4000. ) * std::numeric_limits<uint16_t>::max();
+                float start = ( ( ms % 5000 ) / 5000. ) * std::numeric_limits<uint16_t>::max();
                 const float step = static_cast<float>( std::numeric_limits<uint16_t>::max() ) / static_cast<float>( settings.mCount ) * 1.5;
                 for( int i = 0; i < settings.mCount; ++i )
                 {
@@ -278,6 +278,7 @@ namespace Animation
         };
 
         // TODO: adjust this based on date to match sunrise / sunset.
+        // Generated using this tool & excel: https://color.adobe.com/create/image-gradient
         const GradientPoint SkyPoints[] = { { 255, 255, 255, 0, 0 },
                                             { 221, 244, 254, 0.0801, 0.13123702732 },
                                             { 141, 221, 254, 0.1823738904, 0.1966619492 },
