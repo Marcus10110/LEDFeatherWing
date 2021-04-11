@@ -267,8 +267,98 @@ namespace Animation
                 }
             } );
 
-        std::array<Animation*, 5> AllAnimations = { &WhiteAnimation, &StripIdAnimation, &CircleRainbowAnimation, &SparkleAnimation,
-                                                    &KaleidoscopeAnimation };
+
+        struct GradientPoint
+        {
+            uint8_t mR;
+            uint8_t mG;
+            uint8_t mB;
+            float mBegin;
+            float mEnd;
+        };
+
+        // TODO: adjust this based on date to match sunrise / sunset.
+        const GradientPoint SkyPoints[] = { { 255, 255, 255, 0, 0 },
+                                            { 221, 244, 254, 0.0801, 0.13123702732 },
+                                            { 141, 221, 254, 0.1823738904, 0.1966619492 },
+                                            { 99, 204, 245, 0.2109508292, 0.2282469436 },
+                                            { 56, 163, 209, 0.245543058, 0.2643436108 },
+                                            { 35, 106, 163, 0.2831441636, 0.2959286052 },
+                                            { 59, 102, 136, 0.3087122256, 0.3275127784 },
+                                            { 170, 171, 112, 0.3463133312, 0.3598491708 },
+                                            { 209, 118, 40, 0.3733858316, 0.3876738904 },
+                                            { 106, 41, 9, 0.4019619492, 0.4342991628 },
+                                            { 0, 0, 0, 0.4666355552, 0.6035024956 },
+                                            { 73, 73, 105, 0.7403686148, 0.7524008372 },
+                                            { 97, 97, 147, 0.7644330596, 0.7787219396 },
+                                            { 180, 124, 162, 0.7930099984, 0.8125619492 },
+                                            { 246, 147, 143, 0.8321147212, 0.86670695 },
+                                            { 237, 247, 247, 0.9013, 0.9013 },
+                                            { 255, 255, 255, 1, 1 } };
+        const int SkyPointCount = sizeof( SkyPoints ) / sizeof( GradientPoint );
+
+        template <typename T>
+        T Interpolate( T begin, T end, float fraction )
+        {
+            return static_cast<T>( ( begin - end ) * fraction + begin );
+        }
+
+        std::tuple<uint8_t, uint8_t, uint8_t> Interpolate( const std::tuple<uint8_t, uint8_t, uint8_t> begin,
+                                                           const std::tuple<uint8_t, uint8_t, uint8_t> end, float fraction )
+        {
+            // let's linearly interpolate the HSV version.
+            const auto begin_hsv = RgbToHsv( std::get<0>( begin ), std::get<1>( begin ), std::get<2>( begin ) );
+            const auto end_hsv = RgbToHsv( std::get<0>( end ), std::get<1>( end ), std::get<2>( end ) );
+            return HsvToRgb( Interpolate( std::get<0>( begin_hsv ), std::get<0>( end_hsv ), fraction ),
+                             Interpolate( std::get<1>( begin_hsv ), std::get<1>( end_hsv ), fraction ),
+                             Interpolate( std::get<2>( begin_hsv ), std::get<2>( end_hsv ), fraction ) );
+        }
+
+        std::tuple<uint8_t, uint8_t, uint8_t> RenderGradient( const GradientPoint* gradient, int gradient_size, float position )
+        {
+            for( int i = 0; i < gradient_size - 1; ++i )
+            {
+                const auto& current = gradient[ i ];
+                const auto& next = gradient[ i + 1 ];
+                if( position <= current.mEnd )
+                    return std::make_tuple( current.mR, current.mG, current.mB );
+                if( position < next.mBegin )
+                {
+                    const auto start = current.mEnd;
+                    const auto end = next.mBegin;
+                    const auto fraction = ( position - start ) / ( start - end );
+                    return Interpolate( std::make_tuple( current.mR, current.mG, current.mB ), std::make_tuple( next.mR, next.mG, next.mB ),
+                                        fraction );
+                }
+            }
+            const auto& last = gradient[ gradient_size - 1 ];
+            return std::make_tuple( last.mR, last.mG, last.mB );
+        }
+
+
+        FnAnimation SkyAnimation = FnAnimation( []( SetLedFn& set_led, GetLedFn& get_led, const AnimationSettings& settings, uint32_t ms ) {
+            // the sky gradient goes from noon to noon.
+            // convert to fraction of day.
+            float time = static_cast<float>( ms / 1000 ) / ( 60 * 60 * 24 );
+            // shift 50%.
+            time += 0.5;
+            if( time > 1 )
+                time -= 1;
+            if( time < 0 )
+                time = 0;
+            else if( time > 1 )
+                time = 1;
+
+            const auto color = RenderGradient( SkyPoints, SkyPointCount, time );
+
+            for( int i = 0; i < settings.mCount; ++i )
+            {
+                set_led( i, std::get<0>( color ), std::get<1>( color ), std::get<2>( color ) );
+            }
+        } );
+
+        std::array<Animation*, 6> AllAnimations = { &WhiteAnimation,   &StripIdAnimation,      &CircleRainbowAnimation,
+                                                    &SparkleAnimation, &KaleidoscopeAnimation, &SkyAnimation };
     }
 
     int AnimationCount()

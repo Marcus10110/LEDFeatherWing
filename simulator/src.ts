@@ -42,7 +42,7 @@ Module.addOnPostRun(() => {
   console.log("addOnPostRun - script");
   console.log(Module);
   console.log(Module.Sum(1, 3));
-  const startMs = new Date().getTime();
+  const startMs = new Date().setHours(0, 0, 0, 0); // set to midnight today.
 
   const animationCount = Module.AnimationCount();
   const buttonList = document.getElementById("animationButtons");
@@ -57,7 +57,8 @@ Module.addOnPostRun(() => {
 
   setInterval(() => {
     let stripIndex = 0;
-    const ms = Math.round(new Date().getTime() - startMs);
+    let ms = Math.round(new Date().getTime() - startMs);
+
     for (const strip of strips) {
       if (stripIndex === 11) {
         stripIndex++;

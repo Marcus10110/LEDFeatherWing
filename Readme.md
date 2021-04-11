@@ -99,6 +99,8 @@ dns-sd -G v4 livingroom2.local
 
 ## FW Issues
 
+Tuples were a bad idea. destructuring isn't available until C++ 17, and whatever ESP32 compiler we're using doesn't support it.
+
 ## LED Layout
 
 The couch wall had 49 LEDs removed, leaving 101.
